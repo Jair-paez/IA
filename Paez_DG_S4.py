@@ -122,17 +122,52 @@ def imprimirCamino(camino: Camino) -> None:
 
         print(f"{paso:<5} {descripcion:<28} {misIzq:>6} {canIzq:>6} {ladoBote[boteIzq]:>10} {misDer:>6} {canDer:>6}")
 
+def dfs(inicio: Estado, meta: Estado) -> Camino | None:
+    # Cada elemento de la pila son los cruces hasta el estado actual,
+    # representado como lista de pares (acción, estado)
+
+    # Primer paso NONE porque es el estado inicial
+    pilaInicial: Camino = [(None, inicio)]
+    pila: list[Camino] = [pilaInicial]
+    visitados: set[Estado] = {inicio}
+    # Evita los bucles por visitar el mismo estado dos veces
+
+    while pila:
+        camino = pila.pop()
+        # Ultimo elemento para la profundidad
+        _, estadoActual = camino[-1]
+
+        if esMeta(estadoActual):
+            return camino
+
+        for accion, estadoSig in generarSucesores(estadoActual):
+            if estadoSig not in visitados:
+                visitados.add(estadoSig)
+                pila.append(camino + [(accion, estadoSig)])
+
+    return None
+    # Si no hay solución
+
 def main() -> None:
-    # Ejecuta BFS e imprime la solución.
+    # Ejecuta BFS y DFS e imprime ambas soluciones.
 
     print("=== Misioneros y Caníbales — BFS ===\n")
-    camino = bfs(estadoInicial, estadoMeta)
+    caminoBFS = bfs(estadoInicial, estadoMeta)
 
-    if camino is None:
+    if caminoBFS is None:
         print("No se encontró solución.")
     else:
-        print(f"Solución encontrada en {len(camino) - 1} cruces:\n")
-        imprimirCamino(camino)
+        print(f"Solución encontrada en {len(caminoBFS) - 1} cruces:\n")
+        imprimirCamino(caminoBFS)
+
+    print("\n=== Misioneros y Caníbales — DFS ===\n")
+    caminoDFS = dfs(estadoInicial, estadoMeta)
+
+    if caminoDFS is None:
+        print("No se encontró solución.")
+    else:
+        print(f"Solución encontrada en {len(caminoDFS) - 1} cruces:\n")
+        imprimirCamino(caminoDFS)
 
 if __name__ == "__main__":
     main()
