@@ -1,4 +1,5 @@
 from collections import deque
+import time
 
 # Cada estado como una tupla (misIzq, canIzq, boteIzq)
 # 1 si el bote está a la izquierda y 0 si está a la derecha
@@ -6,6 +7,8 @@ from collections import deque
 Estado = tuple[int, int, int]
 Accion = tuple[int, int]
 Camino = list[tuple[Accion | None, Estado]]
+ResultadoBusqueda = tuple[Camino, int] | None
+# ResultadoBusqueda = (camino, nodosExpandidos) o None si no hay solución
 
 
 estadoInicial: Estado = (3, 3, 1)
@@ -72,22 +75,26 @@ def generarSucesores(estado: Estado) -> list[tuple[Accion, Estado]]:
         sucesores.append((accion, estadoSig))
     return sucesores
 
-def bfs(inicio: Estado, meta: Estado) -> Camino | None:
+def bfs(inicio: Estado, meta: Estado) -> ResultadoBusqueda:
     # Cada elemento de la cola son los cruces hasta el estado actual,
     # representado como lista de pares (acción, estado)
+    # Retorna (camino, nodosExpandidos) o None si no hay solución
 
     # Primer paso NONE porque es el estado inicial
     colaInicial: Camino = [(None, inicio)]
     cola: deque[Camino] = deque([colaInicial])
     visitados: set[Estado] = {inicio}
     # Evita los bucles por visitar el mismo estado dos veces
+    nodosExpandidos: int = 0
 
     while cola:
         camino = cola.popleft()
         _, estadoActual = camino[-1]
+        nodosExpandidos += 1
+        # Se expande cada nodo extraído
 
         if esMeta(estadoActual):
-            return camino
+            return camino, nodosExpandidos
 
         for accion, estadoSig in generarSucesores(estadoActual):
             if estadoSig not in visitados:
@@ -95,7 +102,35 @@ def bfs(inicio: Estado, meta: Estado) -> Camino | None:
                 cola.append(camino + [(accion, estadoSig)])
 
     return None
-    # Si no hay solución
+
+def dfs(inicio: Estado, meta: Estado) -> ResultadoBusqueda:
+    # Cada elemento de la pila son los cruces hasta el estado actual,
+    # representado como lista de pares (acción, estado)
+    # Retorna (camino, nodosExpandidos) o None si no hay solución
+
+    # Primer paso NONE porque es el estado inicial
+    pilaInicial: Camino = [(None, inicio)]
+    pila: list[Camino] = [pilaInicial]
+    visitados: set[Estado] = {inicio}
+    # Evita los bucles por visitar el mismo estado dos veces
+    nodosExpandidos: int = 0
+
+    while pila:
+        camino = pila.pop()
+        # Ultimo elemento para la profundidad
+        _, estadoActual = camino[-1]
+        nodosExpandidos += 1
+        # Se expande cada nodo extraído
+
+        if esMeta(estadoActual):
+            return camino, nodosExpandidos
+
+        for accion, estadoSig in generarSucesores(estadoActual):
+            if estadoSig not in visitados:
+                visitados.add(estadoSig)
+                pila.append(camino + [(accion, estadoSig)])
+
+    return None
 
 def imprimirCamino(camino: Camino) -> None:
     # Muestra los cruces con el estado resultante en ambas orillas.
@@ -122,52 +157,60 @@ def imprimirCamino(camino: Camino) -> None:
 
         print(f"{paso:<5} {descripcion:<28} {misIzq:>6} {canIzq:>6} {ladoBote[boteIzq]:>10} {misDer:>6} {canDer:>6}")
 
-def dfs(inicio: Estado, meta: Estado) -> Camino | None:
-    # Cada elemento de la pila son los cruces hasta el estado actual,
-    # representado como lista de pares (acción, estado)
+def benchmarkear(algoritmo, inicio: Estado, meta: Estado) -> tuple[ResultadoBusqueda, float]:
+    # Ejecuta el algoritmo y mide su tiempo de ejecución en segundos
+    # Retorna (resultado, tiempoSegundos)
 
-    # Primer paso NONE porque es el estado inicial
-    pilaInicial: Camino = [(None, inicio)]
-    pila: list[Camino] = [pilaInicial]
-    visitados: set[Estado] = {inicio}
-    # Evita los bucles por visitar el mismo estado dos veces
+    inicio_t = time.perf_counter()
+    resultado = algoritmo(inicio, meta)
+    fin_t = time.perf_counter()
+    return resultado, fin_t - inicio_t
 
-    while pila:
-        camino = pila.pop()
-        # Ultimo elemento para la profundidad
-        _, estadoActual = camino[-1]
+def imprimirBenchmark(metricas: list[tuple[str, int, float, int]]) -> None:
+    # Imprime la tabla comparativa con las métricas de cada algoritmo
+    # Cada fila de métricas es (nombre, nodosExpandidos, tiempoSegundos, longitudCamino)
 
-        if esMeta(estadoActual):
-            return camino
+    ancho = 62
+    print("=" * ancho)
+    print(f"{'TABLA COMPARATIVA DE ALGORITMOS':^{ancho}}")
+    print("=" * ancho)
+    print(f"{'Algoritmo':<12} {'Nodos expandidos':>18} {'Tiempo (s)':>14} {'Long. camino':>14}")
+    print("-" * ancho)
 
-        for accion, estadoSig in generarSucesores(estadoActual):
-            if estadoSig not in visitados:
-                visitados.add(estadoSig)
-                pila.append(camino + [(accion, estadoSig)])
+    for nombre, nodos, tiempo, longitud in metricas:
+        print(f"{nombre:<12} {nodos:>18} {tiempo:>14.6f} {longitud:>14}")
 
-    return None
-    # Si no hay solución
+    print("=" * ancho)
 
 def main() -> None:
-    # Ejecuta BFS y DFS e imprime ambas soluciones.
+    # Ejecuta BFS y DFS, imprime los caminos y la tabla comparativa del benchmarking
+
+    metricas: list[tuple[str, int, float, int]] = []
 
     print("=== Misioneros y Caníbales — BFS ===\n")
-    caminoBFS = bfs(estadoInicial, estadoMeta)
+    resultadoBFS, tiempoBFS = benchmarkear(bfs, estadoInicial, estadoMeta)
 
-    if caminoBFS is None:
+    if resultadoBFS is None:
         print("No se encontró solución.")
     else:
+        caminoBFS, nodosBFS = resultadoBFS
         print(f"Solución encontrada en {len(caminoBFS) - 1} cruces:\n")
         imprimirCamino(caminoBFS)
+        metricas.append(("BFS", nodosBFS, tiempoBFS, len(caminoBFS) - 1))
 
     print("\n=== Misioneros y Caníbales — DFS ===\n")
-    caminoDFS = dfs(estadoInicial, estadoMeta)
+    resultadoDFS, tiempoDFS = benchmarkear(dfs, estadoInicial, estadoMeta)
 
-    if caminoDFS is None:
+    if resultadoDFS is None:
         print("No se encontró solución.")
     else:
+        caminoDFS, nodosDFS = resultadoDFS
         print(f"Solución encontrada en {len(caminoDFS) - 1} cruces:\n")
         imprimirCamino(caminoDFS)
+        metricas.append(("DFS", nodosDFS, tiempoDFS, len(caminoDFS) - 1))
+
+    print()
+    imprimirBenchmark(metricas)
 
 if __name__ == "__main__":
     main()
